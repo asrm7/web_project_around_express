@@ -1,57 +1,86 @@
 const express = require("express");
-const usersRouter = express.Router();
+const User = require("../models/user");
 
-const fs = require("fs");
-const path = require("path");
-// Conforme roteiro, usando o modulo path para pegar o caminho para o arquivo JSON
-const filepath = path.join(__dirname, "../data/users.json");
+const router = express.Router();
 
-// Rota para listar todos os usuários
-usersRouter.get("/users", (req, res) => {
-  // Conforme roteiro, usando o modulo fs para acessar e manipular os arquivos de dados JSON
-  fs.readFile(filepath, "utf8", (err, data) => {
+function handleUserError(err, res) {
+  if (err instanceof mongoose.Error.CastError) {
+    // Erro de ID inválido
+    return res.status(400).json({ message: "O ID do usuário fornecido é inválido." });
+  }
 
-    if (err) {
-      console.error("Erro ao ler o arquivo:", err);
-      return res.status(500).json({ error: "Erro ao acessar os dados dos usuários." });
-    }
-    try {
-      const users = JSON.parse(data); // Parseia a string JSON para um objeto
-      res.json(users); // Retorna a lista de usuários
-    } catch (parseError) {
-      console.error("Erro ao parsear o JSON:", parseError);
-      res.status(500).json({ error: "Erro ao processar os dados dos usuários." });
-    }
-  });
+  if (err.name === "DocumentNotFoundError") {
+    // ID não encontrado
+    return res.status(404).json({ message: "Usuário não encontrado com o ID fornecido." });
+  }
+
+  // Outros erros
+  return res.status(500).json({ message: "Ocorreu um erro no servidor." });
+}
+
+// GET /users
+router.get("/", async (req, res) => {
+  try {
+    const users = await User.find({});
+    res.send(users);
+  } catch (err) {
+    handleUserError(err, res); // Chama a função para tratar o erro
+  }
 });
 
-// Rota para buscar um usuário pelo ID
-usersRouter.get('/users/:id', (req, res) => {
-  const userId = req.params.id; // Captura o ID da URL
-
-  fs.readFile(filepath, "utf8", (err, data) => {
-
-    if (err) {
-      console.error("Erro ao ler o arquivo:", err);
-      return res.status(500).json({ error: "Erro ao acessar os dados dos usuários." });
-    }
-    try {
-      const users = JSON.parse(data); // Parseia a string JSON para um objeto
-
-      const user = users.find(u => u._id === userId); // Procura o usuário pelo ID
-
-      if (user) {
-        res.json(user); // Retorna o usuário encontrado
-      } else {
-        res.status(404).json({ message: "ID do usuário não encontrado" }); // Erro 404 se não encontrado
-      }
-    } catch (parseError) {
-      console.error("Erro ao parsear o JSON:", parseError);
-      res.status(500).json({ error: "Erro ao processar os dados dos usuários." });
-    }
-  });
+// GET /users/:userId
+router.get("/:userId", async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId).orFail();
+    res.send(user);
+  } catch (err) {
+    handleUserError(err, res); // Chama a função para tratar o erro
+  }
 });
 
+// POST /users
+router.post("/", async (req, res) => {
+  try {
+    const { name, about, avatar } = req.body;
+    const user = await User.create({ name, about, avatar });
+    res.status(201).send(user);
+  } catch (err) {
+    handleUserError(err, res); // Chama a função para tratar o erro
+  }
+});
 
+// PATCH /users/me - Atualiza o perfil
+router.patch("/me", async (req, res) => {
+  const { name, about } = req.body;
 
-module.exports = usersRouter;
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { name, about },
+      { new: true, runValidators: true }
+    ).orFail();
+
+    res.send(user);
+  } catch (err) {
+    handleUserError(err, res); // Chama a função para tratar o erro
+  }
+});
+
+// PATCH /users/me/avatar - Atualiza o avatar
+router.patch("/me/avatar", async (req, res) => {
+  const { avatar } = req.body;
+
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { avatar },
+      { new: true, runValidators: true }
+    ).orFail();
+
+    res.send(user);
+  } catch (err) {
+    handleUserError(err, res); // Chama a função para tratar o erro
+  }
+});
+
+module.exports = router;

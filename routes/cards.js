@@ -1,30 +1,83 @@
 const express = require("express");
-const cardsRouter = express.Router();
+const Card = require("../models/card");
+const mongoose = require("mongoose");
+const router = express.Router();
+// Função para lidar com erros e personalizar mensagens
+function handleCardError(err, res) {
+  if (err instanceof mongoose.Error.CastError) {
+    // Erro de ID inválido
+    return res.status(400).json({ message: "O ID do cartão fornecido é inválido." });
+  }
 
-const fs = require("fs");
-const path = require("path");
-// Conforme roteiro, usando o modulo path para pegar o caminho para o arquivo JSON
-const filepath = path.join(__dirname, "../data/cards.json");
+  if (err.name === "DocumentNotFoundError") {
+    // Cartão não encontrado
+    return res.status(404).json({ message: "Cartão não encontrado com o ID fornecido." });
+  }
 
-// Rota para listar todos os usuários
-cardsRouter.get("/cards", (req, res) => {
-  // Conforme roteiro, usando o modulo fs para acessar e manipular os arquivos de dados JSON
-  fs.readFile(filepath, "utf8", (err, data) => {
-    console.log(data);
-    if (err) {
-      console.error("Erro ao ler o arquivo:", err);
-      return res.status(500).json({ error: "Erro ao acessar os dados dos cartoes." });
-    }
-    try {
-      const cards = JSON.parse(data); // Parseia a string JSON para um objeto
-      res.json(cards); // Retorna a lista de cartoes
-    } catch (parseError) {
-      console.error("Erro ao parsear o JSON:", parseError);
-      res.status(500).json({ error: "Erro ao processar os dados dos cartoes." });
-    }
-  });
+  // Outros erros
+  return res.status(500).json({ message: "Ocorreu um erro no servidor." });
+}
+
+
+// GET /cards
+router.get("/", async (req, res) => {
+  try {
+    const cards = await Card.find({});
+    res.send(cards);
+  } catch (err) {
+    handleCardError(err, res); // Chama a função para tratar o erro
+  }
 });
 
+// POST /cards
+router.post("/", async (req, res) => {
+  try {
+    const { name, link } = req.body;
+    const card = await Card.create({ name, link, owner: req.user._id });
+    res.status(201).send(card);
+  } catch (err) {
+    handleCardError(err, res); // Chama a função para tratar o erro
+  }
+});
 
+// DELETE /cards/:cardId
+router.delete("/:cardId", async (req, res) => {
+  try {
+    const card = await Card.findByIdAndDelete(req.params.cardId).orFail();
+    res.send({ message: "Cartão deletado com sucesso" });
+  } catch (err) {
+    handleCardError(err, res); // Chama a função para tratar o erro
+  }
+});
 
-module.exports = cardsRouter;
+// PUT /cards/:cardId/likes - Curtir um cartão
+router.put("/:cardId/likes", async (req, res) => {
+  try {
+    const card = await Card.findByIdAndUpdate(
+      req.params.cardId,
+      { $addToSet: { likes: req.user._id } }, // Adiciona o like apenas se ainda não estiver no array
+      { new: true }
+    ).orFail();
+
+    res.send(card);
+  } catch (err) {
+    handleCardError(err, res); // Chama a função para tratar o erro
+  }
+});
+
+// DELETE /cards/:cardId/likes - Descurtir um cartão
+router.delete("/:cardId/likes", async (req, res) => {
+  try {
+    const card = await Card.findByIdAndUpdate(
+      req.params.cardId,
+      { $pull: { likes: req.user._id } }, // Remove o like do array
+      { new: true }
+    ).orFail();
+
+    res.send(card);
+  } catch (err) {
+    handleCardError(err, res); // Chama a função para tratar o erro
+  }
+});
+
+module.exports = router;
