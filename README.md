@@ -31,6 +31,6 @@ Rotas de cartão
 ### Caminho "Não encontrado"
 
 - **Tratamento de erros de rotas inexistentes:**
- - **Caso a rota solicitada não seja encontrada, retorna um erro 500 com uma mensagem personalizada.**
+ - **Caso a rota solicitada não seja encontrada, retorna um erro 500 quando ocorre um erro padrão.**
  - **retorna um erro 400 quando algum dado inválido é passados aos métodos para criar um cartão/usuário ou atualizar um perfil/avatar do usuário.**
  - **retorna um erro 404 quando o cartão ou usuário não é encontrado.**
